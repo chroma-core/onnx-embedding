@@ -32,3 +32,16 @@ and then
 python generate_onnx.py
 ```
 
+## Validating the model implementation is correct
+
+```
+pip install -r requirements-dev.txt
+```
+
+and then
+
+```
+python compare_onnx.py
+```
+
+This will compare the output of the onnx model to the output of the sentence-transformers model by evaluating the glue stsb benchmark as well as looking at the cosine similarity of the embeddings for the dataset.
