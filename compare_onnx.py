@@ -1,32 +1,60 @@
-# Compare with using the transformers library
+# Compare with using the sentence-transformers library
+from datasets import load_dataset
+from evaluate import load
 from sentence_transformers import SentenceTransformer
-st_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-actual_embeddings = st_model.encode(sample_text)
+import numpy as np
+from run_onnx import DefaultEmbeddingModel
 
-from transformers import AutoTokenizer, AutoModel
-import torch
-import torch.nn.functional as F
+# Benchmark dataset to see if the embeddings are the same
+# https://huggingface.co/datasets/glue
+eval_dataset = load_dataset("glue", "stsb", split="validation")
+metric = load("glue", "stsb")
+# eval_dataset = eval_dataset.select(range(100))
 
-#Mean Pooling - Take attention mask into account for correct averaging
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output[0] #First element of model_output contains all token embeddings
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+st_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+onnx_model = DefaultEmbeddingModel()
 
-# Load model from HuggingFace Hub
-tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')
-model = AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')
 
-# Tokenize sentences
-# encoded_input = tokenizer([sample_text], padding=True, truncation=True, return_tensors='pt')
-encoded_input = tokenizer([sample_text], return_tensors='pt', padding='max_length')
+def evaluate_stsb(example):
+    st_s1 = st_model.encode([example["sentence1"]])
+    st_s2 = st_model.encode([example["sentence2"]])
+    st_result = np.dot(st_s1[0], st_s2[0])
+    onnx_s1 = onnx_model([example["sentence1"]])
+    onnx_s2 = onnx_model([example["sentence2"]])
+    onnx_result = np.dot(onnx_s1[0], onnx_s2[0])
+    return {
+        "reference": (example["label"] - 1) / (5 - 1),  # rescale to [0,1]
+        "sentence_transformers": float(st_result),
+        "onnx": float(onnx_result),
+    }
 
-# Compute token embeddings
-with torch.no_grad():
-    model_output = model(**encoded_input)
 
-# Perform pooling
-sentence_embeddings = mean_pooling(model_output, encoded_input['attention_mask'])
+results = eval_dataset.map(evaluate_stsb)
+onnx_results = metric.compute(
+    predictions=results["onnx"], references=results["reference"]
+)
+st_results = metric.compute(
+    predictions=results["sentence_transformers"], references=results["reference"]
+)
 
-# Normalize embeddings
-sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1).numpy()
+print(f"ONNX results: {onnx_results['pearson']}")
+print(f"ST results: {st_results['pearson']}")
+
+# Compare by dot product of embeddings
+def compare_embeddings(example):
+    onnx_s1 = onnx_model([example["sentence1"]])
+    st_s1 = onnx_model([example["sentence1"]])
+    onnx_result = np.dot(onnx_s1[0], st_s1[0])
+    return {
+        "onnx": float(onnx_result),
+    }
+
+
+results = eval_dataset.map(compare_embeddings)
+# Make sure the embeddings are the same
+EPS = 1e-6
+similar_count = 0
+for result in results:
+    if abs(result["onnx"] - 1) < EPS:
+        similar_count += 1
+print(f"Similar embeddings: {similar_count/len(results)*100}%")
