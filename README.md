@@ -1,6 +1,6 @@
 # ONNX Embedding Model
 
-This repo houses our code to generate the "sentence-transformers/all-MiniLM-L6-v2" model into onnx as well as reference code for how to run it. 
+This repo houses chromadbs code to generate the "sentence-transformers/all-MiniLM-L6-v2" model into onnx as well as reference code for how to run it. 
 
 The model is stored on S3 and chromadb will fetch/cache it from there. 
 
