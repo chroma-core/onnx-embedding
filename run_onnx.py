@@ -28,6 +28,7 @@ class DefaultEmbeddingModel():
         
 
     def __call__(self, documents: List[str], batch_size: int = 32):
+        all_embeddings = []
         for i in range(0, len(documents), batch_size):
             batch = documents[i:i + batch_size]
             encoded = [self.tokenizer.encode(d) for d in batch]
@@ -44,7 +45,8 @@ class DefaultEmbeddingModel():
             input_mask_expanded = np.broadcast_to(np.expand_dims(attention_mask, -1), last_hidden_state.shape)
             embeddings = np.sum(last_hidden_state * input_mask_expanded, 1) / np.clip(input_mask_expanded.sum(1), a_min=1e-9, a_max=None)
             embeddings = normalize(embeddings).astype(np.float32)
-            return embeddings
+            all_embeddings.append(embeddings)
+        return np.concatenate(all_embeddings)
 
 
 sample_text = "This is a sample text that is likely to overflow the entire model and will be truncated. \
