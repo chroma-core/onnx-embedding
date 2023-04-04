@@ -31,7 +31,7 @@ pip install -r requirements-dev.txt
 and then
 
 ```
-python generate_onnx.py
+python create_onnx.py
 ```
 
 ## Validating the model implementation is correct
