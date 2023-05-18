@@ -10,10 +10,9 @@ MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 # Use pytorches default epsilon for division by zero
 # https://pytorch.org/docs/stable/generated/torch.nn.functional.normalize.html
 def normalize(v):
-    norm = np.linalg.norm(v)
-    if norm == 0:
-        norm = 1e-12
-    return v / norm
+    norm = np.linalg.norm(v, axis=1)
+    norm[norm == 0] = 1e-12
+    return v / norm[:, np.newaxis]
 
 # Sampel implementation of the default sentence-transformers model using ONNX
 class DefaultEmbeddingModel():

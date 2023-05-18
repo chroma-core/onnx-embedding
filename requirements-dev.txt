@@ -9,3 +9,5 @@ tokenizers==0.13.2
 torch==2.0.0
 torchvision==0.15.1
 transformers==4.27.4
+hypothesis
+pytest
